@@ -76,7 +76,7 @@ Events are logged into a CSV file with the following columns:
 - `Timestamp`: The timestamp of the event.
 - `Zone`: The zone where the event occurred.
 - `XP Gain`: The XP gained from the event.
-- `Mob Killed`: The name of the mob killed (if applicable).
+- `Mob Killed`: The name of the mob killed.
 
 ### GUI
 
