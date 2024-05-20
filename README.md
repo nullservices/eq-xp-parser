@@ -23,7 +23,7 @@ EverQuest Log Monitor is a Python application that monitors and logs various in-
 1. Clone the repository:
     ```bash
     git clone https://github.com/nullservices/eq-xp-parser.git
-    cd eq-xp-pasrser
+    cd eq-xp-parser
     ```
 
 2. Install the required Python packages:
