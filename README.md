@@ -1,3 +1,6 @@
+![EQ XP Logger Logo](assets/stupidlogo.png)
+
+
 # EverQuest Log Monitor
 
 EverQuest Log Monitor is a Python application that monitors and logs various in-game events from EverQuest logs. It displays real-time information about your gameplay, including experience points (XP) gained, mobs killed, deaths, and zone changes. The application also allows logging these events into a CSV file for later analysis.
