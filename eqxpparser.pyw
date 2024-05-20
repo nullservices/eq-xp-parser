@@ -122,6 +122,18 @@ def toggle_logging():
         start_session_log()
         toggle_log_button.config(text="Stop Logging Session to CSV", bg="green")
     logging_active = not logging_active
+    config = load_config()
+    config["logging_active"] = logging_active
+    save_config(config)
+
+def restore_logging_state():
+    global logging_active
+    config = load_config()
+    logging_active = config.get("logging_active", False)
+    if logging_active:
+        toggle_log_button.config(text="Stop Logging Session to CSV", bg="green")
+    else:
+        toggle_log_button.config(text="Start Logging Session to CSV", bg="#FF6347")
 
 def monitor_log_file():
     global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log, csv_writer
@@ -135,25 +147,29 @@ def monitor_log_file():
                 time.sleep(0.01)  # Reduce sleep interval for more frequent checking
                 continue
             
+            print(f"Line read from log: {line.strip()}")  # Debug statement
+
             # Check for XP gain
             xp_match = xp_gain_pattern.search(line)
             if xp_match:
                 last_xp_gain = float(xp_match.group(1))
                 last_xp_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 total_xp += last_xp_gain
-                kill_count += 1
+                print(f"XP Gained: {last_xp_gain}, Total XP: {total_xp}")  # Debug statement
                 update_gui()
             
             # Check for kills
             kill_match = kill_pattern.search(line)
-            if kill_match and last_xp_gain != 0.0:
+            if kill_match:
                 mob_name = kill_match.group(1)
                 last_mob_killed = mob_name
+                kill_count += 1  # Ensure kill count is incremented
                 session_log.append(("Kill", last_xp_time, current_zone, last_xp_gain, mob_name))
                 if csv_writer:
                     csv_writer.writerow(["Kill", last_xp_time, current_zone, last_xp_gain, mob_name])
-                last_xp_gain = 0.0  # Reset the last_xp_gain to avoid multiple associations
-                update_gui()
+                print(f"Mob Killed: {mob_name}, Total Kills: {kill_count}")  # Debug statement
+                update_gui()  # Update the GUI first
+                last_xp_gain = 0.0  # Reset the last_xp_gain after updating the GUI
             
             # Check for deaths
             if death_pattern.search(line):
@@ -161,6 +177,7 @@ def monitor_log_file():
                 session_log.append(("Death", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""))
                 if csv_writer:
                     csv_writer.writerow(["Death", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
+                print(f"Death detected, Total Deaths: {death_count}")  # Debug statement
                 update_gui()
             
             # Check for zone changes
@@ -170,21 +187,20 @@ def monitor_log_file():
                 session_log.append(("Zone", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""))
                 if csv_writer:
                     csv_writer.writerow(["Zone", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
+                print(f"Zone change detected: {current_zone}")  # Debug statement
                 update_gui()
-
-            # Update GUI to show XP per hour
-            update_gui()
 
 def update_gui():
     elapsed_time = (time.time() - start_time) / 3600  # Convert to hours
     xp_per_hour = total_xp / elapsed_time if elapsed_time > 0 else 0
+    print(f"Updating GUI: XP per Hour: {xp_per_hour:.2f}%, Last XP Gained: {last_xp_gain:.2f}%, Total XP Gained: {total_xp:.2f}%, Total Mobs Killed: {kill_count}, Total Deaths: {death_count}, Current Zone: {current_zone}")  # Debug statement
     if display_preferences["XP per Hour"]:
         xp_per_hour_label.config(text=f"XP per Hour: {xp_per_hour:.2f}%")
         xp_per_hour_label.grid()
     else:
         xp_per_hour_label.grid_remove()
     if display_preferences["Last XP Gained"]:
-        last_xp_gained_label.config(text=f"Last XP Gained: {last_xp_gain}%")
+        last_xp_gained_label.config(text=f"Last XP Gained: {last_xp_gain:.2f}%")
         last_xp_gained_label.grid()
     else:
         last_xp_gained_label.grid_remove()
@@ -275,6 +291,11 @@ def open_help_popup():
     creator_label = tk.Label(help_popup, text="Created by: well_below_average", font=custom_font, fg="white", bg=background_color)
     creator_label.pack(side="bottom", pady=10)
 
+    # Restore logging state after the button is defined
+    root.after(100, restore_logging_state)
+
+
+
 def open_view_popup(parent):
     view_popup = tk.Toplevel(parent)
     view_popup.overrideredirect(True)
@@ -291,7 +312,7 @@ def open_view_popup(parent):
 
     def on_motion_view(event):
         x = (event.x_root - view_popup.x)
-        y = (event.y_root - view_popup.y)
+        y = (event.y_root - help_popup.y)
         view_popup.geometry("+%s+%s" % (x, y))
 
     view_popup.bind("<ButtonPress-1>", start_move_view)
@@ -337,6 +358,17 @@ def on_motion(event):
     x = (event.x_root - root.x)
     y = (event.y_root - root.y)
     root.geometry("+%s+%s" % (x, y))
+
+def initialize_current_zone():
+    """Initialize the current zone by looking back through the log file for the most recent 'You have entered' message."""
+    global current_zone
+    with open(log_file_path, 'r') as file:
+        lines = file.readlines()
+        for line in reversed(lines):
+            zone_match = zone_pattern.search(line)
+            if zone_match:
+                current_zone = zone_match.group(1)
+                break
 
 # Set up the GUI
 root = tk.Tk()
@@ -408,8 +440,12 @@ try:
 except FileNotFoundError:
     print("Background image not found. Skipping background image.")
 
+# Initialize current zone
+initialize_current_zone()
+
 # Start monitoring the log file
 start_monitoring()
 
 # Run the GUI main loop
 root.mainloop()
+
