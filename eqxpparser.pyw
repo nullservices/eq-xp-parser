@@ -2,7 +2,7 @@ import time
 import re
 import tkinter as tk
 from threading import Thread
-from tkinter import font, filedialog, messagebox
+from tkinter import font, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 import os
 import json
@@ -31,6 +31,8 @@ session_log = []
 csv_file = None
 csv_writer = None
 logging_active = False
+current_xp = 0.0
+time_to_next_level = 0.0
 
 # Load display preferences
 display_preferences = {
@@ -40,7 +42,9 @@ display_preferences = {
     "Total XP Gained": True,
     "Total Mobs Killed": True,
     "Total Deaths": True,
-    "Current Zone": True
+    "Current Zone": True,
+    "Ding ETA": True,
+    "Current XP": True
 }
 
 # Variables to hold the state of checkboxes
@@ -136,7 +140,7 @@ def restore_logging_state():
         toggle_log_button.config(text="Start Logging Session to CSV", bg="#FF6347")
 
 def monitor_log_file():
-    global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log, csv_writer
+    global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log, csv_writer, current_xp, time_to_next_level
     with open(log_file_path, 'r') as file:
         # Move the cursor to the end of the file
         file.seek(0, 2)
@@ -147,15 +151,18 @@ def monitor_log_file():
                 time.sleep(0.01)  # Reduce sleep interval for more frequent checking
                 continue
             
-            print(f"Line read from log: {line.strip()}")  # Debug statement
-
             # Check for XP gain
             xp_match = xp_gain_pattern.search(line)
             if xp_match:
                 last_xp_gain = float(xp_match.group(1))
                 last_xp_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 total_xp += last_xp_gain
-                print(f"XP Gained: {last_xp_gain}, Total XP: {total_xp}")  # Debug statement
+                current_xp += last_xp_gain
+                if current_xp >= 100.0:
+                    current_xp -= 100.0
+                elapsed_time = (time.time() - start_time) / 3600  # Convert to hours
+                xp_per_hour = total_xp / elapsed_time if elapsed_time > 0 else 0
+                time_to_next_level = (100 - current_xp) / xp_per_hour if xp_per_hour > 0 else 0
                 update_gui()
             
             # Check for kills
@@ -163,13 +170,12 @@ def monitor_log_file():
             if kill_match:
                 mob_name = kill_match.group(1)
                 last_mob_killed = mob_name
-                kill_count += 1  # Ensure kill count is incremented
+                kill_count += 1
                 session_log.append(("Kill", last_xp_time, current_zone, last_xp_gain, mob_name))
                 if csv_writer:
                     csv_writer.writerow(["Kill", last_xp_time, current_zone, last_xp_gain, mob_name])
-                print(f"Mob Killed: {mob_name}, Total Kills: {kill_count}")  # Debug statement
-                update_gui()  # Update the GUI first
-                last_xp_gain = 0.0  # Reset the last_xp_gain after updating the GUI
+                update_gui()  # Update the GUI before resetting last_xp_gain
+                last_xp_gain = 0.0  # Reset the last_xp_gain to avoid multiple associations
             
             # Check for deaths
             if death_pattern.search(line):
@@ -177,7 +183,6 @@ def monitor_log_file():
                 session_log.append(("Death", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""))
                 if csv_writer:
                     csv_writer.writerow(["Death", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
-                print(f"Death detected, Total Deaths: {death_count}")  # Debug statement
                 update_gui()
             
             # Check for zone changes
@@ -187,13 +192,15 @@ def monitor_log_file():
                 session_log.append(("Zone", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""))
                 if csv_writer:
                     csv_writer.writerow(["Zone", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
-                print(f"Zone change detected: {current_zone}")  # Debug statement
                 update_gui()
+
 
 def update_gui():
     elapsed_time = (time.time() - start_time) / 3600  # Convert to hours
     xp_per_hour = total_xp / elapsed_time if elapsed_time > 0 else 0
-    print(f"Updating GUI: XP per Hour: {xp_per_hour:.2f}%, Last XP Gained: {last_xp_gain:.2f}%, Total XP Gained: {total_xp:.2f}%, Total Mobs Killed: {kill_count}, Total Deaths: {death_count}, Current Zone: {current_zone}")  # Debug statement
+    time_to_next_level_minutes = time_to_next_level * 60  # Convert hours to minutes
+    time_to_next_level_display = "< 1 Minute" if time_to_next_level_minutes < 1 else f"{int(time_to_next_level_minutes)} Minutes"
+
     if display_preferences["XP per Hour"]:
         xp_per_hour_label.config(text=f"XP per Hour: {xp_per_hour:.2f}%")
         xp_per_hour_label.grid()
@@ -229,10 +236,21 @@ def update_gui():
         current_zone_label.grid()
     else:
         current_zone_label.grid_remove()
+    if display_preferences["Ding ETA"]:
+        time_to_next_level_label.config(text=f"Ding ETA: {time_to_next_level_display}")
+        time_to_next_level_label.grid()
+    else:
+        time_to_next_level_label.grid_remove()
+    if display_preferences["Current XP"]:
+        current_xp_label.config(text=f"Current XP: {current_xp:.2f}%")
+        current_xp_label.grid()
+    else:
+        current_xp_label.grid_remove()
     root.update_idletasks()  # Ensure immediate update of the GUI
 
+
 def reset_counters():
-    global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log
+    global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log, current_xp, time_to_next_level
     total_xp = 0.0
     kill_count = 0
     death_count = 0
@@ -242,6 +260,8 @@ def reset_counters():
     current_zone = "Unknown"
     start_time = time.time()
     session_log = []
+    current_xp = 0.0
+    time_to_next_level = 0.0
     update_gui()
 
 def start_monitoring():
@@ -285,6 +305,9 @@ def open_help_popup():
     toggle_log_button = tk.Button(help_popup, text="Start Logging Session to CSV", font=custom_font, command=toggle_logging, bg="#FF6347", fg="white", relief="flat")
     toggle_log_button.pack(pady=10)
 
+    set_xp_button = tk.Button(help_popup, text="Set Current XP", font=custom_font, command=set_current_xp, bg="#FF6347", fg="white", relief="flat")
+    set_xp_button.pack(pady=10)
+
     close_app_button = tk.Button(help_popup, text="Close App", font=custom_font, command=root.quit, bg="#FF6347", fg="white", relief="flat")
     close_app_button.pack(pady=10)
     
@@ -293,8 +316,6 @@ def open_help_popup():
 
     # Restore logging state after the button is defined
     root.after(100, restore_logging_state)
-
-
 
 def open_view_popup(parent):
     view_popup = tk.Toplevel(parent)
@@ -312,15 +333,15 @@ def open_view_popup(parent):
 
     def on_motion_view(event):
         x = (event.x_root - view_popup.x)
-        y = (event.y_root - help_popup.y)
+        y = (event.y_root - view_popup.y)
         view_popup.geometry("+%s+%s" % (x, y))
 
     view_popup.bind("<ButtonPress-1>", start_move_view)
     view_popup.bind("<ButtonRelease-1>", stop_move_view)
     view_popup.bind("<B1-Motion>", on_motion_view)
 
-    close_button = tk.Button(view_popup, text="X", font=custom_font, command=view_popup.destroy, bg="red", fg="white", relief="flat")
-    close_button.place(x=210, y=10)
+    close_button_view = tk.Button(view_popup, text="X", font=custom_font, command=view_popup.destroy, bg="red", fg="white", relief="flat")
+    close_button_view.place(x=210, y=10)
 
     tk.Label(view_popup, text="Toggle Display", font=custom_font, fg="white", bg=background_color).pack(pady=10)
 
@@ -332,6 +353,16 @@ def open_view_popup(parent):
 
     close_button = tk.Button(view_popup, text="Close", font=custom_font, command=view_popup.destroy, bg="#FF6347", fg="white", relief="flat")
     close_button.pack(pady=10, side="bottom")
+
+    # Dynamically resize the view popup to fit its contents
+    view_popup.update_idletasks()
+    view_popup.geometry(f"{view_popup.winfo_reqwidth()}x{view_popup.winfo_reqheight()}")
+
+
+def set_current_xp():
+    global current_xp
+    current_xp = float(simpledialog.askstring("Set Current XP", "Enter your current XP percentage:", parent=root))
+    update_gui()
 
 def update_display_preference(key, var):
     display_preferences[key] = var.get()
@@ -345,6 +376,7 @@ def change_log_file():
         character_name, server_name = extract_character_and_server_names(log_file_path)
         config = {"log_file_path": log_file_path}
         save_config(config)
+        reset_counters()  # Reset counters when a new log file is selected
 
 def start_move(event):
     root.x = event.x
@@ -421,24 +453,19 @@ total_deaths_label.grid(row=5, column=0, pady=5, sticky="w")
 current_zone_label = tk.Label(frame, text="Current Zone: Unknown", font=custom_font, fg="white", bg=background_color)
 current_zone_label.grid(row=6, column=0, pady=5, sticky="w")
 
+time_to_next_level_label = tk.Label(frame, text="Ding ETA: 0.00 minutes", font=custom_font, fg="white", bg=background_color)
+time_to_next_level_label.grid(row=7, column=0, pady=5, sticky="w")
+
+current_xp_label = tk.Label(frame, text="Current XP: 0.00%", font=custom_font, fg="white", bg=background_color)
+current_xp_label.grid(row=8, column=0, pady=5, sticky="w")
+
 # Add Reset button
 reset_button = tk.Button(frame, text="Reset Session", font=custom_font, command=reset_counters, bg="#FF6347", fg="white", relief="flat")
-reset_button.grid(row=7, column=0, pady=20)
+reset_button.grid(row=9, column=0, pady=20)
 
 # Add Help button
 help_button = tk.Button(root, text="?", font=custom_font, command=open_help_popup, bg="#FF6347", fg="white", relief="flat")
 help_button.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-
-# Load and display an image (e.g., an icon or background image)
-# Ensure you have an image file named 'background.png' in the same directory as your script
-try:
-    background_image = Image.open("background.png")
-    background_image = background_image.resize((400, 200), Image.ANTIALIAS)
-    background_photo = ImageTk.PhotoImage(background_image)
-    background_label = tk.Label(root, image=background_photo)
-    background_label.place(x=0, y=0, relwidth=1, relheight=1)
-except FileNotFoundError:
-    print("Background image not found. Skipping background image.")
 
 # Initialize current zone
 initialize_current_zone()
@@ -448,4 +475,3 @@ start_monitoring()
 
 # Run the GUI main loop
 root.mainloop()
-
