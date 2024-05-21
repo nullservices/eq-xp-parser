@@ -1,11 +1,11 @@
 ![EQ XP Logger Logo](assets/stupidlogo.png)
 
-
 # EQ XP Logger
 
 EQ XP Logger is a Python application that monitors and logs various in-game events from EverQuest logs. It displays real-time information about your gameplay, including experience points (XP) gained, mobs killed, deaths, and zone changes. The application also allows logging these events into a CSV file for later analysis.
 
-![Screenshot](assets/Screenshot.png)
+![Screenshot](assets/mainwindow.png)![Screenshot](assets/optionswindow.png)![Screenshot](assets/displaytogglewindow.png)
+
 
 ## Features
 
@@ -13,6 +13,8 @@ EQ XP Logger is a Python application that monitors and logs various in-game even
 - **Session Logging**: Logs events into a CSV file for later analysis.
 - **Customizable Display**: Toggle display preferences for various statistics.
 - **GUI with Tkinter**: Interactive GUI for ease of use.
+- **Time to Next Level**: Calculates and displays the estimated time to reach the next level based on current XP gain rate.
+- **Current XP Percentage**: Displays the current XP percentage based on user input and XP gained.
 
 ## Requirements
 
@@ -56,8 +58,10 @@ The application uses a `config.json` file to store the path of the log file and 
 - **Total Mobs Killed**: Displays the total number of mobs killed.
 - **Total Deaths**: Shows the total number of deaths.
 - **Current Zone**: Displays the current zone.
+- **Ding ETA**: Displays the estimated time to reach the next level.
+- **Current XP**: Displays the current XP percentage.
 - **Reset Session**: Resets all counters and statistics.
-- **Help Button (? Icon)**: Opens a help popup with options to select a new log file, toggle display preferences, start/stop logging, and close the application.
+- **Help Button (? Icon)**: Opens a help popup with options to select a new log file, toggle display preferences, set current XP, start/stop logging, and close the application.
 
 ## Development
 
@@ -102,6 +106,7 @@ The GUI is built using Tkinter and includes labels, buttons, and custom styling.
 - `start_monitoring()`: Starts the log file monitoring in a separate thread.
 - `open_help_popup()`: Opens the help popup with various options.
 - `open_view_popup(parent)`: Opens the view popup for toggling display preferences.
+- `set_current_xp()`: Sets the current XP percentage based on user input.
 - `update_display_preference(key, var)`: Updates the display preferences and GUI.
 - `change_log_file()`: Changes the log file path.
 - `start_move(event)`, `stop_move(event)`, `on_motion(event)`: Functions for moving the window.
