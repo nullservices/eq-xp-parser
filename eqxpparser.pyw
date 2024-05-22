@@ -14,6 +14,7 @@ config_file_path = "config.json"
 
 # Regular expression patterns to match log entries
 xp_gain_pattern = re.compile(r'\[.*\] You gain experience! \((.*?)%\)')
+party_xp_gain_pattern = re.compile(r'\[.*\] You gain party experience! \((.*?)%\)')
 kill_pattern = re.compile(r'\[.*\] You have slain (.*)!')
 death_pattern = re.compile(r'You have been slain')
 zone_pattern = re.compile(r'\[.*\] You have entered (.*).')
@@ -150,21 +151,24 @@ def monitor_log_file():
             if not line:
                 time.sleep(0.01)  # Reduce sleep interval for more frequent checking
                 continue
-            
+
             # Check for XP gain
             xp_match = xp_gain_pattern.search(line)
-            if xp_match:
-                last_xp_gain = float(xp_match.group(1))
+            party_xp_match = party_xp_gain_pattern.search(line)
+            if xp_match or party_xp_match:
+                xp_gain = float(xp_match.group(1)) if xp_match else float(party_xp_match.group(1))
+                last_xp_gain = xp_gain
                 last_xp_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                total_xp += last_xp_gain
-                current_xp += last_xp_gain
+                total_xp += xp_gain
+                current_xp += xp_gain
                 if current_xp >= 100.0:
                     current_xp -= 100.0
                 elapsed_time = (time.time() - start_time) / 3600  # Convert to hours
                 xp_per_hour = total_xp / elapsed_time if elapsed_time > 0 else 0
                 time_to_next_level = (100 - current_xp) / xp_per_hour if xp_per_hour > 0 else 0
+                time_to_next_level_minutes = time_to_next_level * 60
                 update_gui()
-            
+
             # Check for kills
             kill_match = kill_pattern.search(line)
             if kill_match:
@@ -174,9 +178,9 @@ def monitor_log_file():
                 session_log.append(("Kill", last_xp_time, current_zone, last_xp_gain, mob_name))
                 if csv_writer:
                     csv_writer.writerow(["Kill", last_xp_time, current_zone, last_xp_gain, mob_name])
-                update_gui()  # Update the GUI before resetting last_xp_gain
                 last_xp_gain = 0.0  # Reset the last_xp_gain to avoid multiple associations
-            
+                update_gui()
+
             # Check for deaths
             if death_pattern.search(line):
                 death_count += 1
@@ -184,7 +188,7 @@ def monitor_log_file():
                 if csv_writer:
                     csv_writer.writerow(["Death", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
                 update_gui()
-            
+
             # Check for zone changes
             zone_match = zone_pattern.search(line)
             if zone_match:
