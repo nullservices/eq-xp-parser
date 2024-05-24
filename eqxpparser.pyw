@@ -15,6 +15,7 @@ config_file_path = "config.json"
 # Regular expression patterns to match log entries
 xp_gain_pattern = re.compile(r'\[.*\] You gain experience! \((.*?)%\)')
 party_xp_gain_pattern = re.compile(r'\[.*\] You gain party experience! \((.*?)%\)')
+party_bonus_xp_gain_pattern = re.compile(r'\[.*\] You gain party experience \(with a bonus\)! \((.*?)%\)')  # New pattern
 kill_pattern = re.compile(r'\[.*\] You have slain (.*)!')
 death_pattern = re.compile(r'You have been slain')
 zone_pattern = re.compile(r'\[.*\] You have entered (.*).')
@@ -155,8 +156,9 @@ def monitor_log_file():
             # Check for XP gain
             xp_match = xp_gain_pattern.search(line)
             party_xp_match = party_xp_gain_pattern.search(line)
-            if xp_match or party_xp_match:
-                xp_gain = float(xp_match.group(1)) if xp_match else float(party_xp_match.group(1))
+            party_bonus_xp_match = party_bonus_xp_gain_pattern.search(line)  # Check for party bonus XP
+            if xp_match or party_xp_match or party_bonus_xp_match:
+                xp_gain = float(xp_match.group(1)) if xp_match else (float(party_xp_match.group(1)) if party_xp_match else float(party_bonus_xp_match.group(1)))
                 last_xp_gain = xp_gain
                 last_xp_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 total_xp += xp_gain
@@ -197,7 +199,6 @@ def monitor_log_file():
                 if csv_writer:
                     csv_writer.writerow(["Zone", time.strftime("%Y-%m-%d %H:%M:%S"), current_zone, "", ""])
                 update_gui()
-
 
 def update_gui():
     elapsed_time = (time.time() - start_time) / 3600  # Convert to hours
@@ -251,7 +252,6 @@ def update_gui():
     else:
         current_xp_label.grid_remove()
     root.update_idletasks()  # Ensure immediate update of the GUI
-
 
 def reset_counters():
     global total_xp, kill_count, death_count, last_xp_gain, last_xp_time, last_mob_killed, current_zone, start_time, session_log, current_xp, time_to_next_level
